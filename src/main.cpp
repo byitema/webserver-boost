@@ -37,8 +37,40 @@ void parse_message(std::string& message, json& http_request)
     http_request["Path"] = std::string(head, tail);
 }
 
+void process_message(const std::string& message)
+{
+    std::string msg = message.substr(2, (message.length() - 3));
+
+    const char *head = &msg[0];
+    const char *tail = &msg[0];
+
+    while (*tail != '=' && *tail != '\0') ++tail;
+    std::string action = std::string(head, tail);
+
+    if (action.compare("login") == 0)
+    {
+        //TODO: login();
+    }
+    else if (action.compare("register") == 0)
+    {
+        //TODO: register();
+    }
+    else if (action.compare("logout") == 0)
+    {
+        //TODO: logout();
+    }
+    else
+    {
+        //TODO
+    }
+
+    //std::cout << action << '\n';
+
+}
+
 int main()
 {
+    //init
     io_service io_service;
     tcp::acceptor acceptor_(io_service, tcp::endpoint(tcp::v4(), 8000 ));
     tcp::socket socket_(io_service);
@@ -51,7 +83,16 @@ int main()
         std::cout << message << std::endl;
         parse_message(message, http_request);
 
-        send_(socket_, http_request.dump());
+        //stop server
+        if (http_request["Path"].dump().compare("\"/exit\"") == 0)
+        {
+            socket_.close();
+            break;
+        }
+
+        process_message(http_request["Path"].dump());
+
+        send_(socket_, http_request["Path"].dump());
 
         socket_.close();
     }
