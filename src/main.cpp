@@ -7,22 +7,30 @@ using namespace boost::asio;
 using namespace nlohmann;
 using ip::tcp;
 
-std::string read_(tcp::socket & socket)
+std::string read_socket(tcp::socket & socket)
 {
     streambuf buf;
-    read_until(socket, buf, "\n");
+    try
+    {
+        read_until(socket, buf, "\n");
+    }
+    catch (boost::wrapexcept<boost::system::system_error> ex)
+    {
+        std::cerr << ex.what() << '\n';
+    }
     std::string data = buffer_cast<const char*>(buf.data());
     return data;
 }
 
-void send_(tcp::socket & socket, const std::string& message)
+void write_socket(tcp::socket & socket, const std::string& message)
 {
     const std::string msg = message + "\n";
     write(socket, buffer(message));
 }
 
-void parse_message(std::string& message, json& http_request)
+json parse_message(std::string& message)
 {
+    json http_request;
     const char *head = &message[0];
     const char *tail = &message[0];
 
@@ -35,6 +43,8 @@ void parse_message(std::string& message, json& http_request)
     head = tail;
     while (*tail != ' ') ++tail;
     http_request["Path"] = std::string(head, tail);
+
+    return http_request;
 }
 
 void process_message(const std::string& message)
@@ -73,29 +83,22 @@ int main()
     //init
     io_service io_service;
     tcp::acceptor acceptor_(io_service, tcp::endpoint(tcp::v4(), 8000 ));
-    tcp::socket socket_(io_service);
+    tcp::socket socket(io_service);
 
     json http_request;
+
     while(true) {
-        acceptor_.accept(socket_);
+        acceptor_.accept(socket);
 
-        std::string message = read_(socket_);
+        std::string message = read_socket(socket);
         std::cout << message << std::endl;
-        parse_message(message, http_request);
-
-        //stop server
-        if (http_request["Path"].dump().compare("\"/exit\"") == 0)
-        {
-            socket_.close();
-            break;
-        }
+        http_request = parse_message(message);
 
         process_message(http_request["Path"].dump());
 
-        send_(socket_, http_request["Path"].dump());
+        write_socket(socket, http_request["Path"].dump());
 
-        socket_.close();
+        socket.close();
     }
-
     return 0;
 }
