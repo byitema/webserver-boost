@@ -1,11 +1,17 @@
 #include <iostream>
+#include <map>
 #include <WS2tcpip.h>
 #include <boost/asio.hpp>
+#include <boost/beast.hpp>
 #include "../include/json.hpp"
 
 using namespace boost::asio;
+using namespace boost::beast;
 using namespace nlohmann;
 using ip::tcp;
+
+//(login, is_logged)
+std::map<std::string, bool> users;
 
 std::string read_socket(tcp::socket & socket)
 {
@@ -14,11 +20,12 @@ std::string read_socket(tcp::socket & socket)
     {
         read_until(socket, buf, "\n");
     }
-    catch (boost::wrapexcept<boost::system::system_error> ex)
+    catch (boost::wrapexcept<boost::system::system_error>& ex)
     {
         std::cerr << ex.what() << '\n';
     }
-    std::string data = buffer_cast<const char*>(buf.data());
+
+    std::string data = buffers_to_string(buf.data());
     return data;
 }
 
@@ -28,54 +35,62 @@ void write_socket(tcp::socket & socket, const std::string& message)
     write(socket, buffer(message));
 }
 
-json parse_message(std::string& message)
+std::string request_type(const std::string& message)
 {
-    json http_request;
     const char *head = &message[0];
     const char *tail = &message[0];
 
     // Find request type
     while (*tail != ' ') ++tail;
-    http_request["Type"] = std::string(head, tail);
 
-    // Find path
-    while (*tail == ' ') ++tail;
-    head = tail;
-    while (*tail != ' ') ++tail;
-    http_request["Path"] = std::string(head, tail);
-
-    return http_request;
+    return std::string(head, tail);
 }
 
-void process_message(const std::string& message)
+std::string request_body(const std::string& message)
 {
-    std::string msg = message.substr(2, (message.length() - 3));
-
-    const char *head = &msg[0];
-    const char *tail = &msg[0];
-
-    while (*tail != '=' && *tail != '\0') ++tail;
-    std::string action = std::string(head, tail);
-
-    if (action.compare("login") == 0)
+    std::size_t found = message.find("Content-Length:");
+    const char *tail = &message[found];
+    while(*tail != '\r')
     {
-        //TODO: login();
+        tail++;
+        found++;
     }
-    else if (action.compare("register") == 0)
+    found += 4;
+    std::string body = message.substr(found);
+    return body;
+}
+
+std::string process_message(const std::string& message)
+{
+    std::string type = request_type(message);
+    if (type == "GET")
     {
-        //TODO: register();
+        bool is_anyone_logged = false;
+        for (auto it = users.begin(); it != users.end(); ++it)
+        {
+            if (it->second)
+            {
+                is_anyone_logged = true;
+                break;
+            }
+        }
+
+        if (is_anyone_logged)
+        {
+            return "MY PASSWORD: 1234567890";
+        }
     }
-    else if (action.compare("logout") == 0)
+    else if (type == "POST")
     {
-        //TODO: logout();
-    }
-    else
-    {
-        //TODO
+        std::string body = request_body(message);
+        json json_body = json::parse(body);
+
+
+
+        return json_body.dump();
     }
 
-    //std::cout << action << '\n';
-
+    return "default";
 }
 
 int main()
@@ -85,20 +100,21 @@ int main()
     tcp::acceptor acceptor_(io_service, tcp::endpoint(tcp::v4(), 8000 ));
     tcp::socket socket(io_service);
 
-    json http_request;
-
+    std::string response;
     while(true) {
         acceptor_.accept(socket);
 
         std::string message = read_socket(socket);
         std::cout << message << std::endl;
-        http_request = parse_message(message);
 
-        process_message(http_request["Path"].dump());
+        response = process_message(message);
 
-        write_socket(socket, http_request["Path"].dump());
+        std::stringstream response_body;
+        response_body << "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n" << response;
+        write_socket(socket, response_body.str());
 
         socket.close();
     }
+
     return 0;
 }
