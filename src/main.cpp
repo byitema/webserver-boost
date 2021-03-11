@@ -1,19 +1,27 @@
 #include <iostream>
 #include <map>
-#include <WS2tcpip.h>
+
 #include <boost/asio.hpp>
 #include <boost/beast.hpp>
+#include <boost/thread/thread.hpp>
+
 #include "../include/json.hpp"
+#include "../include/ctpl_stl.h"
 
 using namespace boost::asio;
 using namespace boost::beast;
-using namespace nlohmann;
 using ip::tcp;
+
+using namespace nlohmann;
 
 //(login, password)
 std::map<std::string, std::string> users;
 //(login, is_logged)
 std::map<std::string, bool> users_logged;
+
+std::mutex process_mutex;
+std::mutex write_mutex;
+std::mutex read_mutex;
 
 std::string read_socket(tcp::socket & socket)
 {
@@ -165,6 +173,7 @@ std::string process_message(const std::string& message)
         std::size_t action_length = json_body["action"].dump().length();
         action = action.substr(1, action_length - 2);
 
+        process_mutex.lock();
         if (action == "registration")
         {
             response = registration(json_body);
@@ -177,6 +186,7 @@ std::string process_message(const std::string& message)
         {
             response = logout(json_body);
         }
+        process_mutex.unlock();
 
         return response;
     }
@@ -184,27 +194,36 @@ std::string process_message(const std::string& message)
     return "default";
 }
 
-int main()
+void thread_job(int id, tcp::acceptor& acceptor_, tcp::socket& socket)
 {
-    //init
-    io_service io_service;
-    tcp::acceptor acceptor_(io_service, tcp::endpoint(tcp::v4(), 8000 ));
-    tcp::socket socket(io_service);
-
     std::string response;
-    while(true) {
+    while (true) {
         acceptor_.accept(socket);
-
         std::string message = read_socket(socket);
-        std::cout << message << std::endl;
+        std::cout << id << std::endl << message << std::endl;
 
         response = process_message(message);
 
         std::stringstream response_body;
         response_body << "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\n\r\n" << response;
-        write_socket(socket, response_body.str());
 
+        write_socket(socket, response_body.str());
         socket.close();
+    }
+}
+
+int main() {
+    //init
+    io_service io_service;
+    tcp::acceptor acceptor_(io_service, tcp::endpoint(tcp::v4(), 8000));
+    tcp::socket socket(io_service);
+
+    int thread_count = 2;
+    ctpl::thread_pool p(thread_count);
+
+    for (int i = 0; i < thread_count; i++)
+    {
+        p.push(thread_job, std::ref(acceptor_), std::ref(socket));
     }
 
     return 0;
