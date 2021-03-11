@@ -3,7 +3,6 @@
 
 #include <boost/asio.hpp>
 #include <boost/beast.hpp>
-#include <boost/thread/thread.hpp>
 
 #include "../include/json.hpp"
 #include "../include/ctpl_stl.h"
