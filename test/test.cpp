@@ -1,5 +1,7 @@
 #include <iostream>
 #include <boost/asio.hpp>
+#include <thread>
+#include <vector>
 
 using namespace boost::asio;
 using ip::tcp;
@@ -36,7 +38,7 @@ void task(const std::string message)
     }
 }
 
-int main()
+void main_task()
 {
     task("POST / HTTP/1.1\r\n"
          "Content-Type: application/json\r\n"
@@ -113,5 +115,61 @@ int main()
          "    \"login\": \"by_tema\",\n"
          "    \"password\": \"1234\"\n"
          "}");
+}
+
+int main()
+{
+    std::vector<std::thread> threads;
+    threads.push_back(std::thread(task, "POST / HTTP/1.1\r\n"
+                                        "Content-Type: application/json\r\n"
+                                        "User-Agent: PostmanRuntime/7.26.10\r\n"
+                                        "Accept: */*\r\n"
+                                        "Postman-Token: 9151cea7-3c91-4422-9758-40a5d8b3db8c\r\n"
+                                        "Host: 127.0.0.1:8000\r\n"
+                                        "Accept-Encoding: gzip, deflate, br\r\n"
+                                        "Connection: keep-alive\r\n"
+                                        "Content-Length: 84\r\n"
+                                        "\r\n"
+                                        "{\n"
+                                        "    \"action\": \"registration\",\n"
+                                        "    \"login\": \"by_tema\",\n"
+                                        "    \"password\": \"1234\"\n"
+                                        "}"));
+    threads.push_back(std::thread(task, "POST / HTTP/1.1\r\n"
+                                        "Content-Type: application/json\r\n"
+                                        "User-Agent: PostmanRuntime/7.26.10\r\n"
+                                        "Accept: */*\r\n"
+                                        "Postman-Token: 9151cea7-3c91-4422-9758-40a5d8b3db8c\r\n"
+                                        "Host: 127.0.0.1:8000\r\n"
+                                        "Accept-Encoding: gzip, deflate, br\r\n"
+                                        "Connection: keep-alive\r\n"
+                                        "Content-Length: 84\r\n"
+                                        "\r\n"
+                                        "{\n"
+                                        "    \"action\": \"registration\",\n"
+                                        "    \"login\": \"by_tema\",\n"
+                                        "    \"password\": \"1234\"\n"
+                                        "}"));
+    threads.push_back(std::thread(task, "POST / HTTP/1.1\r\n"
+                                        "Content-Type: application/json\r\n"
+                                        "User-Agent: PostmanRuntime/7.26.10\r\n"
+                                        "Accept: */*\r\n"
+                                        "Postman-Token: 9151cea7-3c91-4422-9758-40a5d8b3db8c\r\n"
+                                        "Host: 127.0.0.1:8000\r\n"
+                                        "Accept-Encoding: gzip, deflate, br\r\n"
+                                        "Connection: keep-alive\r\n"
+                                        "Content-Length: 84\r\n"
+                                        "\r\n"
+                                        "{\n"
+                                        "    \"action\": \"registration\",\n"
+                                        "    \"login\": \"by_tema\",\n"
+                                        "    \"password\": \"1234\"\n"
+                                        "}"));
+
+    for (std::thread& t: threads)
+    {
+        t.join();
+    }
+
     return 0;
 }
